@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Type checking
+.mypy_cache/
+.pyright/
+
+# Linting
+.ruff_cache/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Claude Code — per-machine settings, not meant to be shared/versioned
+.claude/settings.local.json
+
+# Regenerated artifacts: docling/pypdf parse caches, compiled statement metadata, and the LLM
+# answer cache all rebuild automatically from the PDF on first run (notebooks/README.md §1-2).
+# llm_cache_*.json in particular grows on every call and would otherwise diff on nearly every
+# commit for no benefit.
+notebooks/data/cache/
+
+# POC stage: these review sheets and care-review outputs are Claude-labeled, not clinician-
+# reviewed, and (for care_review_*) regenerate differently on every run now that per-patient
+# inference is never cached — committing them is just stale-snapshot noise. Revisit once a real
+# clinician review exists and is worth preserving as human-authored data.
+notebooks/outputs/
+
+# KDIGO guideline PDF is copyrighted source material, not something this repo produces — keep it
+# local rather than redistribute it via git. Re-add with `git add -f` if you want it tracked.
+notebooks/data/guidelines/

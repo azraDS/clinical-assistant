@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clinical-assistant"
+version = "0.1.0"
+description = "CKD guideline retrieval and care-review generation over synthetic patients (research prototype)"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic>=2",
+    "pydantic-settings>=2",
+    "python-dotenv>=1",
+    "openai>=1.50",
+    "pandas>=2",
+    "numpy>=1.26",
+    "docling>=2",
+    "docling-core>=2",
+    "pypdf>=5",
+    "rank-bm25>=0.2",
+    "sentence-transformers>=3",
+    "langfuse>=3",
+]
+
+[project.optional-dependencies]
+app = [
+    "streamlit>=1.38",
+]
+dev = [
+    "pytest>=8",
+    "ruff>=0.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+    
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
