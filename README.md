@@ -167,3 +167,29 @@ fact (`[q for q in llm_queries if q not in template]`); the package instead give
 template queries up front and asks it to return only genuine gaps, so no post-hoc dedup is
 needed. The notebook hasn't been re-run with this change — if the two are ever reconciled, update
 notebooks/README.md's §10 description and re-run §11 first.
+
+## Retrieval strategy comparison
+
+Measured once, on the notebook's 12-patient draft gold set (`notebooks/README.md` §11, dated
+2026-09-25, **Claude-labeled, not clinician-reviewed** — a POC-stage relevance signal, not a
+validated benchmark). Strategy names below are the current package names (`retrieval.py`); the
+raw numbers are unchanged from the notebook, just relabeled.
+
+| Strategy | recall@10 | recall@15 | recall@25 | recall@35 | inappropriate@15 | Status |
+|---|---|---|---|---|---|---|
+| `dense_raw` (internal only, not in UI) | 0.27 | 0.34 | 0.40 | 0.47 | 3.58 | current |
+| `hybrid_raw` (internal only, not in UI) | 0.27 | 0.32 | 0.40 | 0.49 | 3.75 | current |
+| `filtered_hybrid_raw` | 0.29 | 0.36 | 0.46 | 0.52 | 0.58 | current |
+| `code_query_reformulation_rerank` | 0.27 | 0.39 | 0.45 | 0.52 | 0.17 | current |
+| `llm_query_reformulation_rerank` | 0.35 | 0.42 | 0.58 | 0.66 | 0.50 | **stale — pre-redesign** |
+| `code_and_llm_query_reformulation_rerank` | 0.32 | 0.47 | 0.58 | 0.68 | 0.17 | **stale — pre-redesign** |
+| `llm_based_retrieval` | 0.56 | 0.67 | 0.80 | 0.80 | 0.00 | current |
+| `llm_based_retrieval_plus_query_reformulation` (pipeline default) | 0.56 | 0.67 | 0.82 | 0.93 | 0.00 | **stale — pre-redesign** |
+
+"Current" rows don't touch LLM sub-query generation at all (no reformulation, code-only template
+queries, or pure LLM screening with no query rewriting), so the sub-query redesign couldn't have
+changed their numbers. "Stale" rows route through `build_llm_gap_subqueries`, the function that
+redesign changed (independent generation + post-hoc string-dedup → template-aware prompt, no
+dedup needed) — including the pipeline's own default strategy. Those three rows, especially the
+default, are last known good, not current — re-running `notebooks/README.md` §11 against today's
+code is the only way to get real post-redesign numbers (tracked as open work, not yet done).
