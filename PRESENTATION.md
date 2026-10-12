@@ -12,7 +12,7 @@
 |---|---|---|
 | 1 | [Architecture](#1-architecture) | Offline vs. online split, end-to-end diagram |
 | 2 | [Sample patient walkthrough — P001](#2-sample-patient-walkthrough--p001) | Live example: record → `PatientState` → `derive` → sub-queries |
-| 3 | [Embeddings](#3-embeddings) | Model, asymmetric query prefix, no vector store, reranker comparison |
+| 3 | [Embeddings](#3-embeddings) | Model, asymmetric query prefix, reranker comparison |
 | 4 | [Where LLMs are used](#4-where-llms-are-used) | 4 call sites, all `gpt-4.1`, single structured-output calls |
 | 5 | [Grading](#5-grading-grade-strengthcertainty) | GRADE strength/certainty mapping, how wording matches grade |
 | 6 | [Table maps](#6-table-maps--what-they-do-where-inserted) | How linked tables get inlined into the prompt |
