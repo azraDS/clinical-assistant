@@ -4,6 +4,8 @@
 
 > Research prototype on **synthetic patients**. Not a clinical decision-support system.
 
+![Streamlit app: patient record, visit note, retrieval strategy and k](docs/app-input.png)
+
 ## What it does
 
 - **Input:** a patient's structured record + the clinician's free-text visit note
