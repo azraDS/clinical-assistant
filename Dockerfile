@@ -14,7 +14,10 @@ COPY src ./src
 RUN pip install --extra-index-url https://download.pytorch.org/whl/cpu -e ".[app]"
 
 COPY app.py ./
-RUN mkdir -p notebooks/data notebooks/outputs && chown -R app:app /app /home/app
+# The HF cache dir must exist (owned by app) in the image, or the named volume mounted there
+# is created root-owned and model downloads fail with PermissionError.
+RUN mkdir -p notebooks/data notebooks/outputs /home/app/.cache/huggingface \
+    && chown -R app:app /app /home/app
 USER app
 
 EXPOSE 8501
