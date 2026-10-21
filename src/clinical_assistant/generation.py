@@ -66,7 +66,9 @@ def format_evidence_package(pkg: dict) -> str:
         lines.append(f"## {domain}")
         for e in items_:
             flag = f" [CONDITIONAL — needs {', '.join(e['needs_data'])}]" if e["needs_data"] else ""
-            lines.append(f"- {e['statement_id']} (grade {e['grade'] or 'practice point'}, p.{e['page']}){flag}\n  {e['text']}")
+            lines.append(
+                f"- {e['statement_id']} (grade {e['grade'] or 'practice point'}, p.{e['page']}){flag}\n  {e['text']}"
+            )
             if e["rationale_excerpt"]:
                 lines.append(f"  [section context] {e['rationale_excerpt']}")
             for t in e["linked_tables"]:
@@ -78,8 +80,12 @@ def format_evidence_package(pkg: dict) -> str:
 class Recommendation(BaseModel):
     action: str = Field(description="What the clinician should consider for THIS patient, one concrete action")
     why_this_patient: str = Field(description="The patient facts (from record or note) that make it apply")
-    statement_ids: list[str] = Field(description="IDs of the guideline statements it is based on — only IDs from the evidence package")
-    applies: Literal["applies", "conditional"] = Field(description="'conditional' if it depends on data that is missing")
+    statement_ids: list[str] = Field(
+        description="IDs of the guideline statements it is based on — only IDs from the evidence package"
+    )
+    applies: Literal["applies", "conditional"] = Field(
+        description="'conditional' if it depends on data that is missing"
+    )
     missing_data: list[str] = Field(default_factory=list, description="Data needed before acting, if conditional")
     caution: Optional[str] = Field(None, description="Safety caveat stated in the evidence, if any")
 
@@ -186,7 +192,11 @@ def render_report(patient_label: str, note: str, result: dict) -> str:
         "",
     ]
     for n, r in enumerate(result["recommendations"], 1):
-        tag = "" if r["applies"] == "applies" else f" — *conditional: needs {', '.join(r['missing_data']) or 'more data'}*"
+        tag = (
+            ""
+            if r["applies"] == "applies"
+            else f" — *conditional: needs {', '.join(r['missing_data']) or 'more data'}*"
+        )
         lines.append(f"### {n}. {r['action']}{tag}")
         lines.append(f"*Why this patient:* {r['why_this_patient']}")
         if r["caution"]:

@@ -30,9 +30,7 @@ def test_sglt2i_statement_population_and_egfr(kb):
 def test_pediatric_statement_excluded_for_adult(kb):
     st = build_patient_state(sp.RECORDS["P001"], sp.NOTES["P001"], use_llm=False)
     filtered = label_statement_eligibility(kb, st)
-    pediatric_only = [
-        sid for sid, s in kb.stmt_by_id.items() if s["applicability"]["population"] == "child"
-    ]
+    pediatric_only = [sid for sid, s in kb.stmt_by_id.items() if s["applicability"]["population"] == "child"]
     assert pediatric_only  # sanity: the guideline does have pediatric-only statements
     assert all(filtered[sid][0] == "excluded" for sid in pediatric_only)
 

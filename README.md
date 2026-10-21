@@ -1,13 +1,93 @@
 # Clinical Assistant — CKD guideline retrieval + care review
 
-Research prototype on **synthetic data**, not a clinical decision-support system. Given a patient
-(structured record + visit note), retrieves the KDIGO 2024 CKD guideline statements a clinician
-should see, and generates a draft care review with per-statement citations. See
-[`notebooks/README.md`](notebooks/README.md) for how the pipeline works, what's been tried, and
-what's still open — that document is the source of truth for the method; this one is about the
-code layout.
+![python](https://img.shields.io/badge/python-3.13-blue) ![status](https://img.shields.io/badge/status-research%20prototype-orange) ![data](https://img.shields.io/badge/data-synthetic%20only-green)
 
-## Project structure
+> Research prototype on **synthetic patients**. Not a clinical decision-support system.
+
+## What it does
+
+- **Input:** a patient's structured record + the clinician's free-text visit note
+- **Output:** the KDIGO 2024 CKD guideline statements relevant to *this* patient, and a draft care review where every recommendation cites its source statements
+- **Goal:** never hide a statement the patient needs; never show one that doesn't apply (e.g. pediatric-only rules for an adult)
+
+## Why it is interesting
+
+- **Hybrid retrieval, measured:** BM25 + dense search + cross-encoder rerank + LLM screening, compared on a 12-patient gold set (recall@k, "inappropriate@k") — see [results](#retrieval-strategy-comparison)
+- **Structured guideline parsing:** a 199-page PDF is turned into 169 statement units with heading paths, GRADE strength and linked tables
+- **Deterministic safety layer:** eligibility filtering (regex + LLM consensus) and a pregnancy safety rule run in code, not in the prompt
+- **Citations verified in code:** every cited statement ID is checked against the retrieved evidence; hallucinated citations are stripped and reported
+- **Fixed pipeline, not an agent:** reproducible, testable, cheaper — rationale in `src/clinical_assistant/pipeline.py`
+- **Observability:** every run is one Langfuse trace (prompts, outputs, tokens, latency); opt-in, fails safe
+
+## Pipeline
+
+```text
+OFFLINE (once per guideline version)        ONLINE (per patient)
+KDIGO PDF -> parse -> 169 statements        record + note -> patient state
+          -> applicability metadata                       -> eligibility filter
+          -> BM25 + dense index                           -> retrieval + rerank + LLM screening
+                                                          -> evidence package
+                                                          -> care review + citation check
+```
+
+Full write-up (method, experiments, open problems): [`notebooks/README.md`](notebooks/README.md) ·
+Talk track: [`PRESENTATION.md`](PRESENTATION.md)
+
+## Quick start
+
+The KDIGO guideline PDF is copyrighted and is **not** in this repo. Download the
+[KDIGO 2024 CKD Guideline](https://kdigo.org/wp-content/uploads/2024/03/KDIGO-2024-CKD-Guideline.pdf)
+and save it as `notebooks/data/guidelines/kdigo_2024_ckd.pdf`:
+
+```bash
+mkdir -p notebooks/data/guidelines
+curl -L -o notebooks/data/guidelines/kdigo_2024_ckd.pdf \
+  https://kdigo.org/wp-content/uploads/2024/03/KDIGO-2024-CKD-Guideline.pdf
+```
+
+```bash
+cp .env.example .env          # add OPENAI_API_KEY (Langfuse keys optional)
+```
+
+**With Docker**
+
+```bash
+docker compose up --build     # http://localhost:8501
+```
+
+**Without Docker** (Python 3.13)
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[app,dev]"
+pre-commit install            # secret scanning + lint on every commit
+streamlit run app.py
+```
+
+First run parses the PDF and downloads the embedding/reranker models, so it takes a few minutes;
+results are cached under `notebooks/data/cache`. Everything except the LLM calls runs locally.
+
+## Using the app
+
+- Pick a sample patient (P001–P012) or type your own
+- Run the pipeline, then inspect each stage in its own tab:
+  - merged patient state
+  - eligibility filter (excluded / conditional statements)
+  - retrieved evidence by care domain
+  - final care review with per-recommendation citations and a pass/fail provenance banner
+
+## Development
+
+```bash
+pytest                        # most tests are offline; PDF-dependent and LLM tests skip themselves
+ruff check . && ruff format --check .
+```
+
+- CI (`.github/workflows/ci.yml`) runs gitleaks, ruff and pytest on every push / PR
+- Pre-commit blocks `.env` files, private keys and hard-coded secrets (gitleaks) before they reach git history
+- `.env` is gitignored; only `.env.example` is tracked
+
+## Repository layout
 
 ```text
 notebooks/                       Research notebook (parsing, applicability, retrieval, evaluation,
@@ -95,7 +175,7 @@ eGFR/ACR/age range, ...) computed once offline — two different things that use
 everywhere it's passed around.
 
 It's opt-in and fails safe: `config.get_langfuse()` returns `None` unless `LANGFUSE_PUBLIC_KEY`
-and `LANGFUSE_SECRET_KEY` are set in `notebooks/.env` (used by `add_trace_metadata` and the
+and `LANGFUSE_SECRET_KEY` are set in `.env` (used by `add_trace_metadata` and the
 cached/document-processing path); the `@observe`-decorated functions and `langfuse.openai`'s
 wrapper degrade safely on their own even without keys. Add `LANGFUSE_BASE_URL` too if your project
 isn't on Langfuse's default US cloud region (EU cloud or self-hosted). Traces are tagged
@@ -112,45 +192,6 @@ output (sub-query/screening, final generation); a third (note extraction) uses o
 three run at fixed points in a deterministic sequence — nothing here needs an LLM to decide which
 step runs next, so a dynamic agent loop would add cost and a new failure mode for no benefit that
 the current pipeline needs. See `pipeline.py`'s docstring.
-
-## Setup
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[app,dev]"
-```
-
-Needs `notebooks/.env` with `OPENAI_API_KEY` for anything that calls the LLM (note extraction,
-sub-query generation, screening, final generation — everything else is local/offline). Optionally
-add `LANGFUSE_PUBLIC_KEY` + `LANGFUSE_SECRET_KEY` (and `LANGFUSE_BASE_URL` if not on the default US
-cloud region) to get a full trace of every run — see "Observability" above; without them the
-pipeline runs identically, just untraced.
-
-## Running the app
-
-```bash
-streamlit run app.py
-```
-
-Pick a sample patient (P001–P012) or type a custom one, run the pipeline, and inspect every
-stage in its own tab: merged patient state, the eligibility filter's excluded/conditional
-statements, the retrieved evidence package by care domain, and the final care review with
-per-recommendation citations and provenance (including an explicit pass/fail banner for the
-provenance check itself — whether any citation had to be stripped as hallucinated). The app
-always runs the full LLM pipeline; there's no offline/regex-only mode in the UI (the offline path
-still exists in the library — `build_patient_state(..., use_llm=False)` — for tests).
-
-## Testing
-
-```bash
-pytest
-```
-
-Most tests are deterministic (parsing, applicability regex, eligibility filter, offline patient
-state) and need no network access, only the docling/pypdf caches under `notebooks/data/cache`
-(built once by running the notebook, or by importing `clinical_assistant.parsing` — see its
-module docstring). One test (`test_pipeline_smoke.py`) runs the full LLM pipeline end to end; it's
-skipped without an API key, and free otherwise since it hits the same LLM cache as the notebook.
 
 ## Notebook vs. package
 
@@ -193,3 +234,7 @@ redesign changed (independent generation + post-hoc string-dedup → template-aw
 dedup needed) — including the pipeline's own default strategy. Those three rows, especially the
 default, are last known good, not current — re-running `notebooks/README.md` §11 against today's
 code is the only way to get real post-redesign numbers (tracked as open work, not yet done).
+
+## License
+
+[MIT](LICENSE) for the code. The KDIGO guideline remains © KDIGO and is not redistributed here.

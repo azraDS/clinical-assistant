@@ -9,7 +9,11 @@ from clinical_assistant import config
 from clinical_assistant import sample_patients as sp
 from clinical_assistant.pipeline import CarePipeline
 
-_has_key = os.environ.get("OPENAI_API_KEY") or (config.NOTEBOOK_DIR / ".env").exists()
+_has_key = (
+    os.environ.get("OPENAI_API_KEY")
+    or (config.PROJECT_ROOT / ".env").exists()
+    or (config.NOTEBOOK_DIR / ".env").exists()
+)
 pytestmark = pytest.mark.skipif(
     not (config.DOCLING_CACHE.exists() and _has_key),
     reason="needs the docling cache and an OpenAI API key",

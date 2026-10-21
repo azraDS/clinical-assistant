@@ -30,7 +30,9 @@ def index_text(s: dict) -> str:
 
 
 class SubQueries(BaseModel):
-    queries: list[str] = Field(description="Short retrieval queries, each about one clinical question, phrased like guideline text")
+    queries: list[str] = Field(
+        description="Short retrieval queries, each about one clinical question, phrased like guideline text"
+    )
 
 
 class Screening(BaseModel):

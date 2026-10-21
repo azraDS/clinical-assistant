@@ -7,6 +7,8 @@ name = "clinical-assistant"
 version = "0.1.0"
 description = "CKD guideline retrieval and care-review generation over synthetic patients (research prototype)"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2",
@@ -30,18 +32,23 @@ app = [
 dev = [
     "pytest>=8",
     "ruff>=0.9",
+    "pre-commit>=4",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
-    
+
 [tool.ruff]
 line-length = 120
 target-version = "py313"
+# Notebooks are exploratory (redefined names, scratch cells) — lint the package, app and tests.
+extend-exclude = ["*.ipynb", "*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+# Long lines are mostly deliberate explanatory comments/prompts; the formatter handles code.
+ignore = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"

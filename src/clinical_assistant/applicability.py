@@ -36,7 +36,8 @@ DIABETES_REQ_RE = re.compile(r"\b(?:with|and)\s+(?:type 2 diabetes|T2D|diabetes)
 DIABETES_EXCL_RE = re.compile(r"\bwithout diabetes\b", re.I)
 EXCLUDES_KRT_RE = re.compile(r"not (?:treated with|receiving|on) (?:chronic )?(?:dialysis|KRT)", re.I)
 REQUIRES_KRT_RE = re.compile(
-    r"\b(?:receiving|on|treated with) (?:chronic |maintenance )?(?:dialysis|KRT)\b|\bkidney transplant recipients\b", re.I
+    r"\b(?:receiving|on|treated with) (?:chronic |maintenance )?(?:dialysis|KRT)\b|\bkidney transplant recipients\b",
+    re.I,
 )
 
 DRUG_CLASS_PATTERNS = {
@@ -149,7 +150,10 @@ class LLMApplicability(BaseModel):
     )
     alternative_only_criteria: list[
         Literal["egfr", "acr", "age", "diabetes", "heart_failure", "dialysis", "kidney_transplant"]
-    ] = Field([], description="Criteria that appear inside only ONE of several 'or' alternatives, so a patient can qualify without them")
+    ] = Field(
+        [],
+        description="Criteria that appear inside only ONE of several 'or' alternatives, so a patient can qualify without them",
+    )
     population: Literal["adult", "child", "both", "any"]
     population_quote: Optional[str] = Field(None, description="Exact span from the text supporting population, or null")
     egfr_min: Optional[float] = Field(None, description="Inclusive lower eGFR bound, ml/min/1.73m2")
@@ -162,13 +166,27 @@ class LLMApplicability(BaseModel):
     age_max: Optional[float] = Field(None, description="Exclusive upper age bound, years")
     age_quote: Optional[str] = None
     requires_conditions: list[
-        Literal["type_2_diabetes", "diabetes", "heart_failure", "hypertension", "dialysis", "kidney_transplant", "pregnancy", "albuminuria"]
+        Literal[
+            "type_2_diabetes",
+            "diabetes",
+            "heart_failure",
+            "hypertension",
+            "dialysis",
+            "kidney_transplant",
+            "pregnancy",
+            "albuminuria",
+        ]
     ] = []
     excludes_conditions: list[Literal["diabetes", "dialysis", "kidney_transplant", "pregnancy"]] = []
     conditions_quote: Optional[str] = None
     intent: Literal[
-        "diagnosis_evaluation", "monitoring", "treatment_start", "treatment_continue_or_stop",
-        "referral", "education_or_care_model", "laboratory_practice",
+        "diagnosis_evaluation",
+        "monitoring",
+        "treatment_start",
+        "treatment_continue_or_stop",
+        "referral",
+        "education_or_care_model",
+        "laboratory_practice",
     ]
 
 
@@ -273,7 +291,9 @@ def merge_llm_applicability(rx: dict, llm: dict, s: dict) -> dict:
     if llm["population"] != "any" and not quote_found(llm["population_quote"], s):
         dropped.append(f"population={llm['population']} (quote not in text)")
         merged["population"] = "any"
-    merged["diabetes"] = "excluded" if "diabetes" in excl else "required" if req & {"diabetes", "type_2_diabetes"} else None
+    merged["diabetes"] = (
+        "excluded" if "diabetes" in excl else "required" if req & {"diabetes", "type_2_diabetes"} else None
+    )
     merged["excludes_krt"] = bool(excl & {"dialysis", "kidney_transplant"})
     merged["requires_krt"] = bool(req & {"dialysis", "kidney_transplant"})
     for name in ("egfr", "acr", "age"):
@@ -295,8 +315,10 @@ def merge_llm_applicability(rx: dict, llm: dict, s: dict) -> dict:
             merged["requires_krt"] = False
     # 3. G1 (>=90) is open-ended: a range that includes G1, or an upper bound above 90, has no upper limit.
     g1_quoted = re.search(r"\bg1", " ".join(_words(llm["egfr_quote"] or "")))
-    if merged["egfr_range"] and merged["egfr_range"][1] != INF and (
-        merged["egfr_range"][1] > 90 or (g1_quoted and merged["egfr_range"][1] >= 90)
+    if (
+        merged["egfr_range"]
+        and merged["egfr_range"][1] != INF
+        and (merged["egfr_range"][1] > 90 or (g1_quoted and merged["egfr_range"][1] >= 90))
     ):
         merged["egfr_range"] = (merged["egfr_range"][0], INF)
     merged["metadata_source"] = "llm"

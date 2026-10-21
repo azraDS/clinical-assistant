@@ -50,9 +50,7 @@ class _PypdfReference:
 
             config.PYPDF_CACHE.parent.mkdir(parents=True, exist_ok=True)
             config.PYPDF_CACHE.write_text(
-                "\n".join(
-                    (p.extract_text() or "") for p in PdfReader(str(config.GUIDELINE_PATH)).pages
-                ),
+                "\n".join((p.extract_text() or "") for p in PdfReader(str(config.GUIDELINE_PATH)).pages),
                 encoding="utf-8",
             )
         self._text = map_glyphs(config.PYPDF_CACHE.read_text(encoding="utf-8"))

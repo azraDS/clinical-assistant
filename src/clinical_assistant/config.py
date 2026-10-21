@@ -41,9 +41,11 @@ PIPELINE_VERSION = "v1"
 
 
 def load_env() -> None:
-    """Load the OpenAI key etc. from notebooks/.env (dotenv is a no-op if already set)."""
+    """Load the OpenAI key etc. from .env at the repo root, falling back to notebooks/.env.
+    Real environment variables always win (dotenv never overrides them)."""
     from dotenv import load_dotenv
 
+    load_dotenv(PROJECT_ROOT / ".env")
     load_dotenv(NOTEBOOK_DIR / ".env")
 
 

@@ -30,17 +30,13 @@ def _load_body_items():
         from docling.document_converter import DocumentConverter, PdfFormatOption
 
         opts = PdfPipelineOptions(do_ocr=False, do_table_structure=True)
-        converter = DocumentConverter(
-            format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)}
-        )
+        converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=opts)})
         doc = converter.convert(config.GUIDELINE_PATH).document
         config.DOCLING_CACHE.parent.mkdir(parents=True, exist_ok=True)
         doc.save_as_json(config.DOCLING_CACHE)
 
     items = [
-        item
-        for item, _level in doc.iterate_items()
-        if str(getattr(item, "content_layer", "")) == "ContentLayer.BODY"
+        item for item, _level in doc.iterate_items() if str(getattr(item, "content_layer", "")) == "ContentLayer.BODY"
     ]
     return doc, items, SectionHeaderItem, TableItem, PictureItem
 
@@ -187,9 +183,7 @@ def parse_statements() -> tuple[list[dict], dict]:
         # every numbered ancestor, e.g. "3.15 Cardiovascular disease..." AND "3.15.1 Lipid management"
         parts = s["section"].split(".") if s["section"] else []
         numbered = [
-            section_titles[p]
-            for p in (".".join(parts[:n]) for n in range(2, len(parts) + 1))
-            if p in section_titles
+            section_titles[p] for p in (".".join(parts[:n]) for n in range(2, len(parts) + 1)) if p in section_titles
         ]
         s["heading_path"] = " › ".join(x for x in [s["chapter"], *numbered, s["subheading"]] if x)
         s["table_refs"] = sorted({f"{k} {n}" for k, n in TABLE_REF_RE.findall(s["text"])})

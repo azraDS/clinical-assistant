@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8501:8501"
+    # Secrets come from your local .env at runtime; they are never baked into the image.
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      # Guideline PDF + parse/LLM caches (gitignored, so they persist between runs here).
+      - ./notebooks/data:/app/notebooks/data
+      - ./notebooks/outputs:/app/notebooks/outputs
+      # Embedding / reranker model downloads, so they happen once.
+      - hf-cache:/home/app/.cache/huggingface
+
+volumes:
+  hf-cache:

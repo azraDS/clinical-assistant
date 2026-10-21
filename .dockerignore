@@ -1,0 +1,17 @@
+.git
+.github
+.venv
+.env
+.env.*
+!.env.example
+.claude
+.vscode
+.pytest_cache
+.ruff_cache
+**/__pycache__
+**/*.egg-info
+.DS_Store
+notebooks/*.ipynb
+notebooks/outputs
+notebooks/data
+tests

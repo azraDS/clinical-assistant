@@ -54,9 +54,7 @@ def record_form(defaults: dict, note_default: str, key_prefix: str) -> tuple[dic
     age = c1.number_input("Age", 0, 120, demo["age"], key=f"{key_prefix}_age")
     sex = c2.selectbox("Sex", ["M", "F"], index=0 if demo["sex"] == "M" else 1, key=f"{key_prefix}_sex")
 
-    diagnoses = st.text_input(
-        "Diagnoses (comma-separated)", ", ".join(defaults["diagnoses"]), key=f"{key_prefix}_dx"
-    )
+    diagnoses = st.text_input("Diagnoses (comma-separated)", ", ".join(defaults["diagnoses"]), key=f"{key_prefix}_dx")
     medications = st.text_input(
         "Medications (comma-separated)", ", ".join(defaults["medications"]), key=f"{key_prefix}_meds"
     )
@@ -143,7 +141,9 @@ def render_report(result: dict):
     st.markdown("### Summary")
     st.write(result["summary"])
     for n, r in enumerate(result["recommendations"], 1):
-        tag = "" if r["applies"] == "applies" else f" — conditional: needs {', '.join(r['missing_data']) or 'more data'}"
+        tag = (
+            "" if r["applies"] == "applies" else f" — conditional: needs {', '.join(r['missing_data']) or 'more data'}"
+        )
         st.markdown(f"**{n}. {r['action']}**{tag}")
         st.caption(f"Why this patient: {r['why_this_patient']}")
         if r["caution"]:
@@ -172,7 +172,7 @@ def main():
         if config.get_langfuse() is not None:
             st.caption(f"🔎 Tracing to Langfuse (environment=local, version={config.PIPELINE_VERSION})")
         else:
-            st.caption("Tracing off — add LANGFUSE_PUBLIC_KEY/LANGFUSE_SECRET_KEY to notebooks/.env to enable")
+            st.caption("Tracing off — add LANGFUSE_PUBLIC_KEY/LANGFUSE_SECRET_KEY to .env to enable")
         strategy = st.selectbox(
             "Retrieval strategy",
             list(STRATEGY_LABELS.keys()),
