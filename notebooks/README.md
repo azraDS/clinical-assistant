@@ -293,8 +293,8 @@ With a guideline this size, no retrieval is needed.
 
 `llm_screen_plus_retrieval` (the pipeline default, §13) takes the LLM's picks first, then fills the remaining slots
 from `filtered_combined_rerank` (code checklist sub-queries **plus** LLM sub-queries). The retrieval fill catches
-routine care the LLM skips. It has the best recall at k=35 (0.93) but shows a few more inappropriate statements
-there (0.58 vs 0.00), because the fill is not screened.
+routine care the LLM skips. It has the best recall at k=35 (0.93 in the 2026-09-25 notebook run; 0.87 re-measured with the package code on 2026-11-01, §14).
+The 09-25 run showed a few more inappropriate statements there (0.58 vs 0.00), because the fill is not screened.
 
 Strategies compared (§10):
 
@@ -385,6 +385,19 @@ statement is *wrong* for the patient, which is why inappropriate@k is tracked se
 Filter errors: **0**. Applicability prompt: 30/30 tuning, **16/18 held-out**. Note-extraction prompt: **8/8**
 (§7 trap set). Reranker comparison (`bge-reranker-v2-m3` vs `medcpt`, §10): near-identical, kept `bge-reranker-v2-m3`.
 
+**Re-measured 2026-11-01 with the package code (§14, post sub-query redesign):** the three strategies that use LLM
+sub-queries or screening, same gold set. The notebook-implementation rows above are otherwise unchanged.
+
+| Strategy (package name) | recall@10 | recall@15 | recall@25 | recall@35 | inappropriate@15 |
+|---|---|---|---|---|---|
+| `llm_query_reformulation_rerank` (≈ `filtered_llmquery_rerank`) | 0.38 | 0.48 | 0.59 | 0.68 | 0.08 |
+| `code_and_llm_query_reformulation_rerank` (≈ `filtered_combined_rerank`) | 0.31 | 0.43 | 0.60 | 0.67 | 0.17 |
+| `llm_based_retrieval` (≈ `llm_screen`, package prompt) | 0.41 | 0.57 | 0.72 | 0.72 | 0.00 |
+| **`llm_based_retrieval_plus_query_reformulation`** (default, ≈ `llm_screen_plus_retrieval`) | 0.41 | 0.57 | 0.73 | **0.87** | 0.00 |
+
+`llm_based_retrieval` is lower than `llm_screen` above (0.57 vs 0.67 at recall@15) because the package prompt differs
+(`temperature=0`, at most 25 picks); it is not a like-for-like repeat.
+
 Numbers moved since the first draft (e.g. `llm_screen` recall@15 was 0.60, now 0.67) because the applicability
 filter and sub-queries were tuned further; re-run §11 after any filter or query change to keep this table current.
 
@@ -412,7 +425,7 @@ filter and sub-queries were tuned further; re-run §11 after any filter or query
 | 16 | `heading_path` keeps only the deepest numbered heading: Rec 3.15.1.1 gets `Chapter 3 › 3.15.1 Lipid management`, and the parent `3.15 Cardiovascular disease…` is lost, so its words are not searchable | inspecting units | **open**: keep the full numbered-heading stack in `walk_statements` (§3) |
 | 17 | Medication union doesn't dedupe near-duplicate strings across record and note (P001: `"Amlodipine 10 mg daily"` + `"amlodipine 10"`) | reading patient states | **open**: normalize before `st.medications` union, or dedupe case/dose-insensitively |
 | 18 | `llm_screen` alone still misses some routine care (statin, risk equation, annual monitoring) and NOAC-over-warfarin for P008 | per-patient misses (§11 cell 64) | partially addressed: `llm_screen_plus_retrieval` fills from `filtered_combined_rerank`, which runs the always-on code checklist; **still open**: fill can itself miss (P008: `Rec 3.16.1`/`PP 3.16.2` NOAC-warfarin still absent at k=25) and raises inappropriate@35 slightly (0.58) since the fill isn't screened |
-| 19 | Full end-to-end run (§14, all 12 patients + P013) shows one inappropriate citation at k=25 — `Rec 3.7.3` in P012's report (on hemodialysis, a population mostly out of scope for this guideline) | end-to-end check, 2026-09-27 | **open**: resolves at k=35 in this run, but worth a dialysis-population rule alongside the existing pregnancy rule (§8) rather than relying on a larger k |
+| 19 | Full end-to-end run (§14, all 12 patients + P013) showed one inappropriate citation at k=25 — `Rec 3.7.3` in P012's report (on hemodialysis, a population mostly out of scope for this guideline) | end-to-end check, 2026-09-27 | **open**: 0 inappropriate citations in the 2026-11-01 re-run, but P012 now yields an uncited "do not initiate a statin" (flagged unsupported at both k); a dialysis-population rule alongside the existing pregnancy rule (§8) would address both |
 
 ### Lessons
 
@@ -441,21 +454,30 @@ patient → build_evidence_package() (§13) ──► format_evidence_package() 
                                                           outputs/care_review_<patient>.md
 ```
 
-`PIPELINE_STRATEGY = "llm_screen_plus_retrieval"`, `PIPELINE_K = 25`. The generation system prompt (§14) matches
+`PIPELINE_STRATEGY = "llm_screen_plus_retrieval"` (package name: `llm_based_retrieval_plus_query_reformulation`), `PIPELINE_K = 25`. The generation system prompt (§14) matches
 wording to grade ("recommends" / "suggests" / "expert practice point"), flags `CONDITIONAL` statements as
 depending on missing data instead of presenting them as settled, and puts the clinician's own questions before
 routine care the note didn't ask about.
 
-**End-to-end check, all 12 patients + a fresh P013 added from raw inputs (§14 cells 70–71)**, at k=25 and k=35:
+**End-to-end check, all 12 patients + a fresh P013 (§14b, re-run 2026-11-01; originally §14 cells 70–71)**, at k=25 and k=35:
 `invalid_citations` and `unsupported_recs` are checked automatically (target 0 both); `must_cited` and
 `inappropriate_cited` are compared against the draft gold set. This is the pipeline's own acceptance check, not
 just a retrieval metric.
 
-Result (2026-09-27 run): **0/12 invalid citations, 0/12 unsupported recommendations** at both k. `must_cited`
-0.64 at k=25 → 0.73 at k=35 (mean over patients with a `must` label; P003 is the healthy control, no `must`).
-One inappropriate citation at k=25 — `Rec 3.7.3` in P012's report (on hemodialysis, mostly out of scope for this
-guideline) — which the k=35 fill resolves to 0. P013 (new patient, nothing precomputed) ran end to end with no
-errors, confirming `add_patient` → state → pipeline works outside the 12 fixed test patients.
+Result (2026-11-01 run, package code): **0/12 invalid citations** at both k; **1/12 unsupported recommendations** at
+both k (P012, see below). `must_cited` 0.68 at k=25 → 0.75 at k=35 (mean over patients with a `must` label; P003 is
+the healthy control, no `must`). **0 inappropriate citations** at both k. P013 (new patient, nothing precomputed) ran
+end to end (6 recommendations at k=25, 7 at k=35), confirming `add_patient` → state → pipeline works outside the 12
+fixed test patients.
+
+Unsupported recommendation (P012, hemodialysis, asks about a statin): the model wrote "do not initiate a statin" but
+cited nothing, and said in `caution` that the supporting KDIGO text was not in the evidence package. The statin
+recommendations that cover this case (e.g. `Rec 3.15.1.1`, adults not on chronic dialysis) are excluded by the
+eligibility filter, so there was nothing to cite; `attach_provenance` flagged it (`unsupported = not valid`). Generation
+rule 1 ("use only the evidence package") was not followed for the content, though the model disclosed it.
+
+Previous run (2026-09-27, before the redesign): 0/12 invalid, 0/12 unsupported, `must_cited` 0.64 → 0.73, one
+inappropriate citation at k=25 (`Rec 3.7.3`, P012).
 
 ---
 

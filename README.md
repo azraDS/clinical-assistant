@@ -208,15 +208,17 @@ app (and any future caller) can import it instead of re-running notebook cells.
 generates LLM sub-queries and dedups them against the template by exact string match after the
 fact (`[q for q in llm_queries if q not in template]`); the package instead gives the LLM the
 template queries up front and asks it to return only genuine gaps, so no post-hoc dedup is
-needed. The notebook hasn't been re-run with this change — if the two are ever reconciled, update
-notebooks/README.md's §10 description and re-run §11 first.
+needed. The notebook's own §11 hasn't been re-run with this change, but its §14 now runs the package
+code directly and re-measures the affected strategies (see below) — if the two are ever reconciled,
+update notebooks/README.md's §10 description.
 
 ## Retrieval strategy comparison
 
-Measured once, on the notebook's 12-patient draft gold set (`notebooks/README.md` §11, dated
-2026-09-25, **Claude-labeled, not clinician-reviewed** — a POC-stage relevance signal, not a
-validated benchmark). Strategy names below are the current package names (`retrieval.py`); the
-raw numbers are unchanged from the notebook, just relabeled.
+Measured on the notebook's 12-patient draft gold set (**Claude-labeled, not clinician-reviewed** —
+a POC-stage relevance signal, not a validated benchmark). Strategy names below are the current
+package names (`retrieval.py`). The first five rows are the 2026-09-25 numbers from the notebook's
+own implementation (`notebooks/README.md` §11). The last three rows were re-measured on
+2026-11-01 by running the package code itself (`notebooks/02_retrieval_pipeline.ipynb` §14).
 
 | Strategy | recall@10 | recall@15 | recall@25 | recall@35 | inappropriate@15 | Status |
 |---|---|---|---|---|---|---|
@@ -224,18 +226,32 @@ raw numbers are unchanged from the notebook, just relabeled.
 | `hybrid_raw` (internal only, not in UI) | 0.27 | 0.32 | 0.40 | 0.49 | 3.75 | current |
 | `filtered_hybrid_raw` | 0.29 | 0.36 | 0.46 | 0.52 | 0.58 | current |
 | `code_query_reformulation_rerank` | 0.27 | 0.39 | 0.45 | 0.52 | 0.17 | current |
-| `llm_query_reformulation_rerank` | 0.35 | 0.42 | 0.58 | 0.66 | 0.50 | **stale — pre-redesign** |
-| `code_and_llm_query_reformulation_rerank` | 0.32 | 0.47 | 0.58 | 0.68 | 0.17 | **stale — pre-redesign** |
-| `llm_based_retrieval` | 0.56 | 0.67 | 0.80 | 0.80 | 0.00 | current |
-| `llm_based_retrieval_plus_query_reformulation` (pipeline default) | 0.56 | 0.67 | 0.82 | 0.93 | 0.00 | **stale — pre-redesign** |
+| `llm_query_reformulation_rerank` | 0.38 | 0.48 | 0.59 | 0.68 | 0.08 | re-measured 2026-11-01 |
+| `code_and_llm_query_reformulation_rerank` | 0.31 | 0.43 | 0.60 | 0.67 | 0.17 | re-measured 2026-11-01 |
+| `llm_based_retrieval` | 0.41 | 0.57 | 0.72 | 0.72 | 0.00 | re-measured 2026-11-01 |
+| `llm_based_retrieval_plus_query_reformulation` (pipeline default) | 0.41 | 0.57 | 0.73 | **0.87** | 0.00 | re-measured 2026-11-01 |
 
-"Current" rows don't touch LLM sub-query generation at all (no reformulation, code-only template
-queries, or pure LLM screening with no query rewriting), so the sub-query redesign couldn't have
-changed their numbers. "Stale" rows route through `build_llm_gap_subqueries`, the function that
-redesign changed (independent generation + post-hoc string-dedup → template-aware prompt, no
-dedup needed) — including the pipeline's own default strategy. Those three rows, especially the
-default, are last known good, not current — re-running `notebooks/README.md` §11 against today's
-code is the only way to get real post-redesign numbers (tracked as open work, not yet done).
+- The first five rows don't touch LLM sub-query generation (no reformulation, or code-only template queries), so
+  the sub-query redesign couldn't have changed them. They were measured with the notebook's implementation, not
+  the package (e.g. the raw rows query with patient text + note in the notebook, the note alone in the package).
+- `llm_based_retrieval` dropped from the earlier 0.67 / 0.80 (recall@15 / @25). The package prompt differs from the
+  notebook's `llm_screen` (`temperature=0`, at most 25 picks), so the earlier number was not a like-for-like carry-over.
+- The default's recall@35 is 0.87 (earlier draft: 0.93); the k=35 > k=25 ordering holds.
+- All LLM answers for this run are cached under `pkg_*` keys in `notebooks/data/cache/llm_cache_gpt-4.1.json`,
+  so re-running §14 costs nothing.
+
+### End-to-end check (default strategy, 12 patients + fresh P013, 2026-11-01)
+
+| Metric | k=25 | k=35 |
+|---|---|---|
+| Invalid citations (patients with ≥1) | 0/12 | 0/12 |
+| Unsupported recommendations (patients with ≥1) | 1/12 | 1/12 |
+| `must_cited` (mean over patients with a `must` label) | 0.68 | 0.75 |
+| Inappropriate citations | 0 | 0 |
+
+The one unsupported recommendation is P012 (hemodialysis, asks about a statin): the model advised against starting
+one but cited nothing, because the KDIGO statin recommendations for that case are excluded by the eligibility filter.
+The provenance check flagged it rather than letting it through. P013 ran end to end at both k (6 and 7 recommendations).
 
 ## License
 

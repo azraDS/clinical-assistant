@@ -218,27 +218,31 @@ Rec 1.2.1 (grade 1A, p.12)
 | `hybrid_raw` *(internal, no reformulation)* | 0.32 | `███░░░░░░░` | 0.40 | 0.49 | 3.75 | `████████` |
 | `filtered_hybrid_raw` *(no reformulation)* | 0.36 | `████░░░░░░` | 0.46 | 0.52 | 0.58 | `█░░░░░░░` |
 | `code_query_reformulation_rerank` | 0.39 | `████░░░░░░` | 0.45 | 0.52 | 0.17 | `░░░░░░░░` |
-| `llm_query_reformulation_rerank`¹ | 0.42 | `████░░░░░░` | 0.58 | 0.66 | 0.50 | `█░░░░░░░` |
-| `code_and_llm_query_reformulation_rerank`¹ | 0.47 | `█████░░░░░` | 0.58 | 0.68 | 0.17 | `░░░░░░░░` |
-| `llm_based_retrieval` | 0.67 | `███████░░░` | 0.80 | 0.80 | 0.00 | `░░░░░░░░` |
-| **`llm_based_retrieval_plus_query_reformulation`¹** (default) | 0.67 | `███████░░░` | **0.82** | **0.93** | 0.00 | `░░░░░░░░` |
+| `llm_query_reformulation_rerank`¹ | 0.48 | `█████░░░░░` | 0.59 | 0.68 | 0.08 | `░░░░░░░░` |
+| `code_and_llm_query_reformulation_rerank`¹ | 0.43 | `████░░░░░░` | 0.60 | 0.67 | 0.17 | `░░░░░░░░` |
+| `llm_based_retrieval`¹ | 0.57 | `██████░░░░` | 0.72 | 0.72 | 0.00 | `░░░░░░░░` |
+| **`llm_based_retrieval_plus_query_reformulation`¹** (default) | 0.57 | `██████░░░░` | **0.73** | **0.87** | 0.00 | `░░░░░░░░` |
 
-¹ Real, measured numbers (2026-09-25/27) — but measured *before* the sub-query redesign (§9), which changed how these three strategies build their queries. Last known good; confirming they still hold against today's code is open work.
+¹ Re-measured 2026-11-01 with the package code itself (after the sub-query redesign, §9). Other rows: 2026-09-25 notebook implementation (unaffected by the redesign).
 
-**End-to-end confirmation that k=35 > k=25** (2026-09-27 run, 12 patients + fresh P013, same pre-redesign caveat):
+**End-to-end check, default strategy** (2026-11-01, 12 patients + fresh P013):
 
 | Metric | k=25 | k=35 |
 |---|---|---|
-| `must_cited` (gold `must` statements actually cited in the final report — stricter than reaching top-k) | 0.64 | **0.73** |
+| `must_cited` (gold `must` statements actually cited in the final report — stricter than reaching top-k) | 0.68 | **0.75** |
 | Invalid citations | 0/12 | 0/12 |
-| Unsupported recommendations | 0/12 | 0/12 |
-| Inappropriate citations | 1 (`Rec 3.7.3`, P012, hemodialysis — out of scope population) | 0 |
+| Unsupported recommendations | 1/12 (P012) | 1/12 (P012) |
+| Inappropriate citations | 0 | 0 |
 
-P013 (new patient, nothing precomputed) ran end to end with no errors at either k.
+- Unsupported = recommendation left with no valid citation, flagged by the provenance check
+- P012 (hemodialysis, asks about a statin): "do not initiate a statin" with no citation
+- Applicable KDIGO statin statements are excluded by the eligibility filter for dialysis → nothing to cite
+- P013 (new patient, nothing precomputed) ran end to end at both k (6 and 7 recommendations)
 
 **Takeaways:**
 - Raw dense/hybrid, no eligibility filter → low recall *and* unsafe (3.5+ inappropriate/patient, mostly wrong-population statements) — filter alone fixes most of it
-- Only `llm_based_retrieval` variants clear recall@15 > 0.6 → why one is the default
+- `llm_based_retrieval` variants lead at every k (recall@15 ≈ 0.57 vs ≤ 0.48 for the rest) → why one is the default
+- Default's retrieval fill lifts recall@35 from 0.72 to 0.87 with 0 inappropriate@15
 
 ---
 
@@ -301,7 +305,8 @@ P013 (new patient, nothing precomputed) ran end to end with no errors at either 
 - Real vector store (Pinecone/Weaviate/pgvector) once past a few hundred statements — current in-memory brute-force scan won't hold at thousands of statements / multiple guidelines, and isn't persisted
 
 **Deployment**
-- **Dockerization** — none yet, just `pip install -e ".[app,dev]"` + local `.venv`
+- **Done:** Dockerfile + `docker-compose.yml` (CPU torch, non-root, healthcheck, baked HF cache); GitHub Actions CI (gitleaks, ruff, pytest); pre-commit secret/key/`.env` blocking
+- **Still open:** no image publishing / deployment target — local `docker compose up` only
 - **User ID / session ID tracking** — no notion of *who* ran a request yet; needed for audit trail, rate limiting, tying feedback to a review
 
 **Model choices**
@@ -310,7 +315,7 @@ P013 (new patient, nothing precomputed) ran end to end with no errors at either 
 **Recall target for productionization**
 - No single blended number — cost of a miss varies by category, missed `must` statement = invisible, no downstream catch
 - Target recall ≥ ~0.95–0.98 on safety-critical categories specifically (contraindications, dosing, pregnancy/dialysis rules), validated on a clinician-reviewed gold set, inappropriate@k near zero
-- Current best (recall@25≈0.82, recall@35≈0.93, pre-redesign) is a reasonable prototype signal, well short of that bar
+- Current best (default strategy: recall@25≈0.73, recall@35≈0.87; end-to-end `must_cited` 0.75 at k=35) is a reasonable prototype signal, well short of that bar
 - Stays human-in-the-loop regardless of the number reached — never autonomous
 
 *(More items to be added here as they come up.)*
